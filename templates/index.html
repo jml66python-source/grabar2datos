@@ -3,51 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guardar Datos</title>
+    <title>Historial de Datos</title>
     <style>
-        body { font-family: system-ui, sans-serif; background: #121212; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: #1e1e1e; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: 100%; max-width: 320px; text-align: center; }
-        input { width: 100%; padding: 10px; margin: 8px 0; border-radius: 6px; border: 1px solid #333; background: #2a2a2a; color: #fff; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #0070f3; border: none; color: white; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        button:hover { background: #0051a8; }
-        #mensaje { margin-top: 15px; font-size: 14px; }
+        body { font-family: Arial, sans-serif; margin: 20px; max-width: 600px; }
+        form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 30px; }
+        input, button { padding: 10px; font-size: 16px; }
+        button { background-color: #007bff; color: white; border: none; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>Registro de Datos</h2>
-        <input type="text" id="dato1" placeholder="Escribe el Dato 1">
-        <input type="text" id="dato2" placeholder="Escribe el Dato 2">
-        <button onclick="guardarLocal()">Guardar Datos</button>
-        <p id="mensaje"></p>
-    </div>
 
-    <script>
-        function guardarLocal() {
-            const d1 = document.getElementById('dato1').value;
-            const d2 = document.getElementById('dato2').value;
-            const msg = document.getElementById('mensaje');
+    <h2>Añadir Registro</h2>
+    <form method="POST">
+        <input type="text" name="dato1" placeholder="Dato 1" required>
+        <input type="text" name="dato2" placeholder="Dato 2" required>
+        <button type="submit">Guardar en Historial</button>
+    </form>
 
-            if (!d1 || !d2) {
-                msg.innerText = "⚠️ Completa ambos campos";
-                msg.style.color = "#e74c3c";
-                return;
-            }
+    <h2>Historial Guardado</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha y Hora</th>
+                <th>Dato 1</th>
+                <th>Dato 2</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for reg in registros %}
+            <tr>
+                <td>{{ reg[0] }}</td>
+                <td>{{ reg[1] }}</td>
+                <td>{{ reg[2] }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3">No hay registros aún.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 
-            // Crear el contenido del archivo
-            const texto = `Dato 1: ${d1}\nDato 2: ${d2}\n`;
-            
-            // Generar la descarga automática
-            const blob = new Blob([texto], { type: "text/plain;charset=utf-8" });
-            const enlace = document.createElement("a");
-            enlace.href = URL.createObjectURL(blob);
-            enlace.download = "mis_datos.txt";
-            enlace.click();
-            URL.revokeObjectURL(enlace.href);
-
-            msg.innerText = "✨ ¡Archivo descargado!";
-            msg.style.color = "#2ecc71";
-        }
-    </script>
 </body>
 </html>
