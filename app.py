@@ -4,6 +4,7 @@ import csv
 import io
 from flask import Flask, render_template, request, redirect, url_for, Response
 from datetime import datetime
+from zoneinfo import ZoneInfo  # Para manejar la zona horaria de España
 
 app = Flask(__name__)
 
@@ -43,7 +44,9 @@ def index():
     if request.method == 'POST':
         d1 = request.form.get('dato1')
         d2 = request.form.get('dato2')
-        fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Obtenemos la hora actual configurada para la zona horaria de España (península/Baleares)
+        fecha_actual = datetime.now(ZoneInfo("Europe/Madrid")).strftime("%Y-%m-%d %H:%M:%S")
         
         if d1 and d2 and DB_URL:
             conn = get_db_connection()
@@ -72,7 +75,7 @@ def index():
 
     return render_template('index.html', registros=registros)
 
-# RUTA PARA DESCARGAR EN FORMATO COMPATIBLE CON EXCEL EN COLUMNAS
+# RUTA PARA DESCARGAR LA COPIA DE SEGURIDAD (COMPATIBLE CON EXCEL EN COLUMNAS)
 @app.route('/descargar-backup')
 def descargar_backup():
     if not DB_URL:
@@ -87,7 +90,7 @@ def descargar_backup():
         conn.close()
 
         output = io.StringIO()
-        # Se agrega el delimitador ; para que Excel separe por columnas automáticamente
+        # Separador ';' para que Excel en español detecte las columnas
         writer = csv.writer(output, delimiter=';')
         
         # Cabeceras
@@ -99,11 +102,11 @@ def descargar_backup():
 
         output.seek(0)
 
-        # Incluimos BOM (\ufeff) al inicio para que Excel reconozca eñes y tildes correctamente
-        contenido = '\ufeff' + output.getvalue()
+        # Prefijo '\ufeff' (BOM) para conservar tildes y eñes
+        contenido_excel = '\ufeff' + output.getvalue()
 
         return Response(
-            contenido,
+            contenido_excel,
             mimetype="text/csv; charset=utf-8",
             headers={"Content-Disposition": "attachment;filename=copia_seguridad_registros.csv"}
         )
