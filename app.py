@@ -72,7 +72,7 @@ def index():
 
     return render_template('index.html', registros=registros)
 
-# RUTA PARA DESCARGAR LA COPIA DE SEGURIDAD
+# RUTA PARA DESCARGAR EN FORMATO COMPATIBLE CON EXCEL EN COLUMNAS
 @app.route('/descargar-backup')
 def descargar_backup():
     if not DB_URL:
@@ -87,20 +87,24 @@ def descargar_backup():
         conn.close()
 
         output = io.StringIO()
-        writer = csv.writer(output)
+        # Se agrega el delimitador ; para que Excel separe por columnas automáticamente
+        writer = csv.writer(output, delimiter=';')
         
-        # Escribir la primera fila con el nombre de los campos
+        # Cabeceras
         writer.writerow(['ID', 'Fecha y Hora', 'Dato 1', 'Dato 2'])
         
-        # Escribir todos los datos
+        # Datos
         for fila in filas:
             writer.writerow(fila)
 
         output.seek(0)
 
+        # Incluimos BOM (\ufeff) al inicio para que Excel reconozca eñes y tildes correctamente
+        contenido = '\ufeff' + output.getvalue()
+
         return Response(
-            output.getvalue(),
-            mimetype="text/csv",
+            contenido,
+            mimetype="text/csv; charset=utf-8",
             headers={"Content-Disposition": "attachment;filename=copia_seguridad_registros.csv"}
         )
     except Exception as e:
