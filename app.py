@@ -1,26 +1,40 @@
+import os
+import psycopg2
 from flask import Flask, render_template, request, redirect, url_for
-import sqlite3
 from datetime import datetime
 
 app = Flask(__name__)
 
-# Función para conectar a la base de datos y crear la tabla si no existe
+DB_URL = os.environ.get('DATABASE_URL')
+
+def get_db_connection():
+    url = DB_URL
+    if url and url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    conn = psycopg2.connect(url)
+    return conn
+
 def init_db():
-    conn = sqlite3.connect('historial.db')
+    if not DB_URL:
+        return
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS registros (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha_hora TEXT NOT NULL,
+            id SERIAL PRIMARY KEY,
+            fecha_hora VARCHAR(50) NOT NULL,
             dato1 TEXT NOT NULL,
             dato2 TEXT NOT NULL
-        )
+        );
     ''')
     conn.commit()
+    cursor.close()
     conn.close()
 
-# Inicializar BD al arrancar
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print("Error inicializando BD:", e)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -29,21 +43,30 @@ def index():
         d2 = request.form.get('dato2')
         fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        if d1 and d2:
-            conn = sqlite3.connect('historial.db')
+        if d1 and d2 and DB_URL:
+            conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute('INSERT INTO registros (fecha_hora, dato1, dato2) VALUES (?, ?, ?)', (fecha_actual, d1, d2))
+            cursor.execute(
+                'INSERT INTO registros (fecha_hora, dato1, dato2) VALUES (%s, %s, %s)',
+                (fecha_actual, d1, d2)
+            )
             conn.commit()
+            cursor.close()
             conn.close()
         
         return redirect(url_for('index'))
 
-    # Obtener historial de registros (los más recientes primero)
-    conn = sqlite3.connect('historial.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT fecha_hora, dato1, dato2 FROM registros ORDER BY id DESC')
-    registros = cursor.fetchall()
-    conn.close()
+    registros = []
+    if DB_URL:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('SELECT fecha_hora, dato1, dato2 FROM registros ORDER BY id DESC')
+            registros = cursor.fetchall()
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            print("Error al leer BD:", e)
 
     return render_template('index.html', registros=registros)
 
