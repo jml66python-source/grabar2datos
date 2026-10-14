@@ -4,15 +4,17 @@ import csv
 import io
 from flask import Flask, render_template, request, redirect, url_for, Response
 from datetime import datetime
-from zoneinfo import ZoneInfo  # Para manejar la zona horaria de España
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 app = Flask(__name__)
 
 DB_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
+    if not DB_URL:
+        raise ValueError("La variable de entorno DATABASE_URL no está configurada.")
     url = DB_URL
-    if url and url.startswith("postgres://"):
+    if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
     conn = psycopg2.connect(url)
     return conn
@@ -20,24 +22,28 @@ def get_db_connection():
 def init_db():
     if not DB_URL:
         return
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS registros (
-            id SERIAL PRIMARY KEY,
-            fecha_hora VARCHAR(50) NOT NULL,
-            dato1 TEXT NOT NULL,
-            dato2 TEXT NOT NULL
-        );
-    ''')
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS registros (
+                id SERIAL PRIMARY KEY,
+                fecha_hora VARCHAR(50) NOT NULL,
+                dato1 TEXT NOT NULL,
+                dato2 TEXT NOT NULL
+            );
+        ''')
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print("Error inicializando BD:", e)
 
+# Intentar inicializar al arrancar
 try:
     init_db()
 except Exception as e:
-    print("Error inicializando BD:", e)
+    print("Error general en init_db:", e)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -45,19 +51,27 @@ def index():
         d1 = request.form.get('dato1')
         d2 = request.form.get('dato2')
         
-        # Obtenemos la hora actual configurada para la zona horaria de España (península/Baleares)
-        fecha_actual = datetime.now(ZoneInfo("Europe/Madrid")).strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            # Manejo seguro de la zona horaria de España
+            zona = ZoneInfo("Europe/Madrid")
+        except ZoneInfoNotFoundError:
+            zona = ZoneInfo("UTC") # Alternativa por seguridad si falta tzdata en el servidor
+            
+        fecha_actual = datetime.now(zona).strftime("%Y-%m-%d %H:%M:%S")
         
-        if d1 and d2 and DB_URL:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                'INSERT INTO registros (fecha_hora, dato1, dato2) VALUES (%s, %s, %s)',
-                (fecha_actual, d1, d2)
-            )
-            conn.commit()
-            cursor.close()
-            conn.close()
+        if d1 and d2:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    'INSERT INTO registros (fecha_hora, dato1, dato2) VALUES (%s, %s, %s)',
+                    (fecha_actual, d1, d2)
+                )
+                conn.commit()
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                return f"Error al insertar en la base de datos: {e}", 500
         
         return redirect(url_for('index'))
 
@@ -71,7 +85,10 @@ def index():
             cursor.close()
             conn.close()
         except Exception as e:
-            print("Error al leer BD:", e)
+            # Muestra el error exacto en pantalla si falla la lectura (ideal para depurar en producción)
+            return f"Error detallado al leer la Base de Datos: {e}. Comprueba que la variable DATABASE_URL es correcta.", 500
+    else:
+        return "Error: La variable de entorno DATABASE_URL no está definida en el servidor.", 500
 
     return render_template('index.html', registros=registros)
 
